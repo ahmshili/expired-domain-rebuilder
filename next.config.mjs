@@ -1,3 +1,3 @@
 export default {
-  output: 'export',
+//  output: 'export',
 }
