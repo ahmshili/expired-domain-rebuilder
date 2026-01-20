@@ -25,3 +25,16 @@ export default async function Report({ params }: { params: { domain: string } })
     </main>
   )
 }
+// app/report/[domain]/page.tsx
+
+// ... your existing imports and component
+
+export async function generateStaticParams() {
+  // Return empty array → page becomes client-side / dynamic for unknown params
+  // Or return example domains if you want some pre-rendered
+  return [];
+  // Example with some pre-rendered pages:
+  // return [{ domain: 'example.com' }, { domain: 'test.net' }];
+}
+
+// ... rest of your page component
