@@ -1,3 +1,6 @@
+export const dynamic = 'force-static';
+export const revalidate = false; // fully static, no revalidation
+
 export default function Home() {
   return (
     <main className="min-h-screen flex items-center justify-center">
