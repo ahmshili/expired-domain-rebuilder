@@ -1,4 +1,4 @@
-# Expired Domain Rebuilder & SEO Signal Analyzer
+#  Expired Domain Rebuilder & SEO Signal Analyzer
 
 ## Purpose
 Analyze expired domains using **free SEO signals** to decide:
