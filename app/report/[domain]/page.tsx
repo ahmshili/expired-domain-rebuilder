@@ -1,6 +1,6 @@
 
 
-import { analyzeDomain } from '../../../lib/analyzer'
+import { analyzeDomain } from '../../../../lib/analyzer'
 export async function generateMetadata({ params }: { params: { domain: string } }) {
   return {
     title: `SEO Report for ${params.domain}`,
