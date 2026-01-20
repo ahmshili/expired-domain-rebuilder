@@ -1,6 +1,9 @@
 
 
 import { analyzeDomain } from  '@lib/analyzer'
+export async function generateStaticParams() {
+  return [];
+}
 export async function generateMetadata({ params }: { params: { domain: string } }) {
   return {
     title: `SEO Report for ${params.domain}`,
@@ -25,16 +28,3 @@ export default async function Report({ params }: { params: { domain: string } })
     </main>
   )
 }
-// app/report/[domain]/page.tsx
-
-// ... your existing imports and component
-
-export async function generateStaticParams() {
-  // Return empty array → page becomes client-side / dynamic for unknown params
-  // Or return example domains if you want some pre-rendered
-  return [];
-  // Example with some pre-rendered pages:
-  // return [{ domain: 'example.com' }, { domain: 'test.net' }];
-}
-
-// ... rest of your page component
