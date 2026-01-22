@@ -1,4 +1,4 @@
-e client";
+"use client";
 
 export const dynamic = "force-dynamic";
 
