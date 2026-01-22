@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import { analyzeDomain } from  '@lib/analyzer'
 // export const runtime = 'edge'
 
