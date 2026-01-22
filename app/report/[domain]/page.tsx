@@ -1,4 +1,6 @@
+e client";
 
+export const dynamic = "force-dynamic";
 
 import { analyzeDomain } from  '@lib/analyzer'
 export async function generateStaticParams() {
