@@ -1,0 +1,2 @@
+compatibility_date = "2026-01-01"   # or later
+compatibility_flags = ["nodejs_compat"]
