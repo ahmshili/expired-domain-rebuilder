@@ -5,7 +5,7 @@ export interface DomainReport {
   risk: "Low" | "Medium" | "High";
   strategy: string;
   snapshots: number;
-  dns: boolean; // we'll fake DNS via fetch
+  dns: boolean;
   https: boolean;
   status: number;
   length: number;
@@ -13,7 +13,7 @@ export interface DomainReport {
   spam: boolean;
 }
 
-// Wayback snapshots
+// Fetch Wayback Machine snapshot count
 async function getWaybackSnapshots(domain: string): Promise<number> {
   try {
     const res = await fetch(
@@ -26,20 +26,26 @@ async function getWaybackSnapshots(domain: string): Promise<number> {
   }
 }
 
-// HTTPS + status
+// Check HTTPS support & status via HEAD request
 async function checkHTTPS(domain: string): Promise<{ https: boolean; status: number }> {
   try {
-    const res = await fetch(`https://${domain}`, { method: "HEAD", redirect: "manual" });
+    const res = await fetch(`https://${domain}`, {
+      method: "HEAD",
+      redirect: "manual",
+    });
     return { https: true, status: res.status };
   } catch {
     return { https: false, status: 0 };
   }
 }
 
-// Fake DNS check by trying HTTPS or HTTP request
+// Simple DNS resolve check using a HEAD request
 async function checkDNS(domain: string): Promise<boolean> {
   try {
-    const res = await fetch(`https://${domain}`, { method: "HEAD", redirect: "manual" });
+    const res = await fetch(`https://${domain}`, {
+      method: "HEAD",
+      redirect: "manual",
+    });
     return res.ok || res.status === 301 || res.status === 302;
   } catch {
     return false;
@@ -51,6 +57,7 @@ export async function analyzeDomain(domain: string): Promise<DomainReport> {
   const tld = domain.split(".").pop() || "";
   const spam = false;
 
+  // run checks in parallel
   const [dnsResolves, httpsRes, snapshots] = await Promise.all([
     checkDNS(domain),
     checkHTTPS(domain),

@@ -53,10 +53,14 @@ export default function ReportClient({ domain }: ReportClientProps) {
 
   return (
     <main className="max-w-2xl mx-auto p-8 bg-white shadow rounded mt-8">
-      <h1 className="text-2xl font-bold mb-4">Domain Rebuild Report: {report.domain}</h1>
+      <h1 className="text-2xl font-bold mb-4">
+        Domain Rebuild Report: {report.domain}
+      </h1>
       <p className="mb-2 font-medium">SEO Rebuild Score: {report.score} / 100</p>
       <p className="mb-2 font-medium">Risk Level: {report.risk}</p>
-      <p className="mb-4 font-medium">Recommended Strategy: {report.strategy}</p>
+      <p className="mb-4 font-medium">
+        Recommended Strategy: {report.strategy}
+      </p>
 
       <h2 className="text-xl font-semibold mb-2">Signal Breakdown</h2>
       <ul className="list-disc ml-6 space-y-1">

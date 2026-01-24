@@ -1,22 +1,27 @@
-// app/api/analyze/route.ts
-export const runtime: "edge" = "edge"; // <-- MUST be first line
+export const runtime = "edge"; // MUST be first
 
-import { analyzeDomain } from "@/lib/analyzer"; // make sure the path is correct
+import { analyzeDomain } from "../../../lib/analyzer";
 
 export async function POST(req: Request) {
   try {
     const { domain } = await req.json();
 
     if (!domain || typeof domain !== "string") {
-      return Response.json({ error: "Invalid domain" }, { status: 400 });
+      return new Response(JSON.stringify({ error: "Invalid domain" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     const data = await analyzeDomain(domain);
-    return Response.json(data);
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (err: any) {
-    return Response.json(
-      { error: err.message || "Unknown error" },
-      { status: 500 }
+    return new Response(
+      JSON.stringify({ error: err.message || "Unknown error" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 }
