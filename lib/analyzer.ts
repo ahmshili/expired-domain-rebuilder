@@ -1,126 +1,108 @@
 // lib/analyzer.ts
-/**
- * Analyzer for expired or active domains.
- * Compatible with Next.js Edge Runtime.
- */
+"use server";
 
 export interface DomainReport {
   domain: string;
-  score: number;
-  risk: "Low" | "Medium" | "High";
-  strategy: string;
-  snapshots: number;
-  dns: boolean;
-  https: boolean;
-  status: number;
-  length: number;
+  seoScore: number;
+  riskLevel: "Low" | "Medium" | "High";
+  recommendedStrategy: string;
+  waybackSnapshots: number;
+  dnsResolves: boolean;
+  httpsSupported: boolean;
+  httpStatus: number;
+  domainLength: number;
   tld: string;
-  spam: boolean;
+  spamIndicators: boolean;
 }
 
-// Utility: fetch number of Wayback Machine snapshots
-export async function getWaybackCount(domain: string): Promise<number> {
+/**
+ * Check DNS resolution (Edge-compatible fallback)
+ */
+async function checkDNS(domain: string): Promise<boolean> {
+  try {
+    // Use fetch to a dummy endpoint to see if domain resolves
+    const res = await fetch(`https://${domain}`, { method: "HEAD" });
+    return res.ok || res.status === 302;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check HTTPS support (Edge-compatible)
+ */
+async function checkHTTPS(domain: string): Promise<boolean> {
+  try {
+    const res = await fetch(`https://${domain}`, { method: "HEAD" });
+    return res.ok || res.status === 302;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get number of Wayback Machine snapshots
+ */
+async function getWaybackCount(domain: string): Promise<number> {
   try {
     const res = await fetch(
       `https://web.archive.org/cdx/search/cdx?url=${domain}/*&output=json&fl=timestamp&collapse=digest`
     );
     if (!res.ok) return 0;
     const data = await res.json();
-    // First row is headers, ignore it
+    // first item is header, rest are snapshots
     return Math.max(0, data.length - 1);
   } catch {
     return 0;
   }
 }
 
-// Utility: check if domain resolves via DNS
-export async function checkDNS(domain: string): Promise<boolean> {
-  try {
-    const res = await fetch(`https://dns.google/resolve?name=${domain}&type=A`);
-    if (!res.ok) return false;
-    const data = await res.json();
-    return data?.Answer?.length > 0;
-  } catch {
-    return false;
-  }
-}
-
-// Utility: check if domain supports HTTPS
-export async function supportsHTTPS(domain: string): Promise<boolean> {
-  try {
-    const res = await fetch(`https://${domain}`, { method: "HEAD" });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-// Utility: get HTTP status
-export async function fetchStatus(domain: string): Promise<number> {
-  try {
-    const res = await fetch(`https://${domain}`, { method: "HEAD" });
-    return res.status;
-  } catch {
-    return 0;
-  }
-}
-
-// Utility: detect basic spam indicators
-export function spamIndicators(domain: string): boolean {
-  const spamTLDs = [".xyz", ".top", ".club", ".online", ".info"];
-  return spamTLDs.some((tld) => domain.endsWith(tld));
-}
-
-// Main function to analyze a domain
+/**
+ * Analyze a domain and return a DomainReport
+ */
 export async function analyzeDomain(domain: string): Promise<DomainReport> {
-  const snapshots = await getWaybackCount(domain);
   const dnsResolves = await checkDNS(domain);
-  const https = await supportsHTTPS(domain);
-  const status = await fetchStatus(domain);
-  const length = domain.length;
-  const tld = domain.split(".").pop() || "";
-  const spam = spamIndicators(domain);
+  const httpsSupported = dnsResolves ? await checkHTTPS(domain) : false;
+  const waybackSnapshots = dnsResolves ? await getWaybackCount(domain) : 0;
 
-  let score = 0;
+  // Domain length and TLD
+  const domainParts = domain.split(".");
+  const domainLength = domainParts[0]?.length || 0;
+  const tld = domainParts[1] || "";
 
-  if (snapshots >= 50) score += 25;
-  else if (snapshots >= 20) score += 15;
-  else if (snapshots >= 5) score += 5;
+  // Score calculation
+  let seoScore = 0;
+  if (waybackSnapshots > 0) seoScore += Math.min(waybackSnapshots, 50); // max 50 points
+  if (dnsResolves) seoScore += 20;
+  if (httpsSupported) seoScore += 20;
+  if (domainLength <= 12) seoScore += 10;
 
-  if (dnsResolves) score += 20;
-  if (https) score += 15;
+  // Determine risk level
+  let riskLevel: DomainReport["riskLevel"] = "High";
+  if (seoScore >= 80) riskLevel = "Low";
+  else if (seoScore >= 50) riskLevel = "Medium";
 
-  if (status === 200) score += 15;
-  else if (status === 301) score += 10;
-  else if (status === 302) score += 5;
+  // Strategy recommendation
+  const recommendedStrategy =
+    seoScore >= 80
+      ? "Authority Content Rebuild"
+      : "Full Content & SEO Rebuild";
 
-  if (length <= 12) score += 10;
-  else if (length <= 18) score += 5;
-
-  if (spam) score -= 20;
-
-  score = Math.max(0, Math.min(100, score));
-
-  let risk: "Low" | "Medium" | "High" = "High";
-  if (score >= 80) risk = "Low";
-  else if (score >= 50) risk = "Medium";
-
-  let strategy = "Full Content & SEO Rebuild";
-  if (score >= 80) strategy = "Authority Content Rebuild";
-  else if (score >= 50) strategy = "Partial Content & SEO Refresh";
+  // Spam indicators (placeholder, can expand later)
+  const spamIndicators = false;
 
   return {
     domain,
-    score,
-    risk,
-    strategy,
-    snapshots,
-    dns: dnsResolves,
-    https,
-    status,
-    length,
+    seoScore,
+    riskLevel,
+    recommendedStrategy,
+    waybackSnapshots,
+    dnsResolves,
+    httpsSupported,
+    httpStatus: dnsResolves ? 200 : 0,
+    domainLength,
     tld,
-    spam,
+    spamIndicators,
   };
 }
 
