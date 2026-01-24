@@ -1,5 +1,4 @@
 // lib/analyzer.ts
-import dns from "dns/promises";
 
 /**
  * Get number of Wayback Machine snapshots for a domain
@@ -11,22 +10,22 @@ export async function getWaybackCount(domain: string): Promise<number> {
     );
     const data = await res.json();
     if (Array.isArray(data)) {
-      // First entry is header row
+      // first entry is header
       return data.length - 1;
     }
     return 0;
-  } catch (e) {
+  } catch {
     return 0;
   }
 }
 
 /**
- * Check if DNS resolves
+ * Check if domain resolves via a HEAD request
  */
 export async function checkDNS(domain: string): Promise<boolean> {
   try {
-    const result = await dns.resolveAny(domain);
-    return result && result.length > 0;
+    const res = await fetch(`https://${domain}`, { method: "HEAD" });
+    return res.ok || res.status === 301 || res.status === 302;
   } catch {
     return false;
   }
@@ -38,7 +37,7 @@ export async function checkDNS(domain: string): Promise<boolean> {
 export async function supportsHTTPS(domain: string): Promise<boolean> {
   try {
     const res = await fetch(`https://${domain}`, { method: "HEAD" });
-    return res.ok;
+    return res.ok || res.status === 301 || res.status === 302;
   } catch {
     return false;
   }
@@ -57,10 +56,9 @@ export async function fetchStatus(domain: string): Promise<number> {
 }
 
 /**
- * Simple spam check placeholder (can be expanded later)
+ * Simple spam check
  */
 export function spamIndicators(domain: string): boolean {
-  // Placeholder: mark domains with random gibberish TLDs as spam
   return /[0-9]{6,}/.test(domain);
 }
 
@@ -68,7 +66,6 @@ export function spamIndicators(domain: string): boolean {
  * Main analysis function
  */
 export async function analyzeDomain(domain: string) {
-  // Get all signals
   const snapshots = await getWaybackCount(domain);
   const dnsResolves = await checkDNS(domain);
   const https = await supportsHTTPS(domain);
@@ -77,33 +74,32 @@ export async function analyzeDomain(domain: string) {
   const tld = domain.split(".").pop() || "";
   const spam = spamIndicators(domain);
 
-  // SEO Scoring (0-100)
+  // SEO Scoring
   let score = 0;
 
-  // Wayback snapshot scoring
+  // Wayback snapshots
   if (snapshots >= 50) score += 25;
   else if (snapshots >= 20) score += 15;
   else if (snapshots >= 5) score += 5;
 
-  // DNS scoring
+  // DNS
   if (dnsResolves) score += 20;
 
-  // HTTPS scoring
+  // HTTPS
   if (https) score += 15;
 
-  // HTTP status scoring
+  // HTTP status
   if (status === 200) score += 15;
   else if (status === 301) score += 10;
   else if (status === 302) score += 5;
 
-  // Domain length scoring
+  // Domain length
   if (length <= 12) score += 10;
   else if (length <= 18) score += 5;
 
   // Spam penalty
   if (spam) score -= 20;
 
-  // Cap score between 0-100
   score = Math.max(0, Math.min(100, score));
 
   // Risk level
