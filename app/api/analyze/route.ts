@@ -1,16 +1,28 @@
-import { NextRequest, NextResponse } from "next/server";
+// app/api/analyze/route.ts
 import { analyzeDomain } from "../../../lib/analyzer";
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const { domain } = await req.json();
-    if (!domain) return NextResponse.json({ error: "Domain is required" }, { status: 400 });
 
-    const report = await analyzeDomain(domain);
-    return NextResponse.json(report);
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "Failed to analyze domain" }, { status: 500 });
+    if (!domain || typeof domain !== "string") {
+      return new Response(
+        JSON.stringify({ error: "Invalid domain" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const data = await analyzeDomain(domain);
+
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ error: err.message || "Unknown error" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
   }
 }
 

@@ -27,6 +27,7 @@ export default function ReportClient({ domain }: ReportClientProps) {
 
   useEffect(() => {
     async function fetchReport() {
+      setLoading(true);
       try {
         const res = await fetch("/api/analyze", {
           method: "POST",
@@ -34,8 +35,8 @@ export default function ReportClient({ domain }: ReportClientProps) {
           body: JSON.stringify({ domain }),
         });
         const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        setReport(data);
+        if (res.ok) setReport(data);
+        else setError(data.error || "Failed to fetch report");
       } catch (e: any) {
         console.error(e);
         setError("Failed to fetch domain report.");
@@ -43,7 +44,6 @@ export default function ReportClient({ domain }: ReportClientProps) {
         setLoading(false);
       }
     }
-
     fetchReport();
   }, [domain]);
 
