@@ -1,4 +1,5 @@
 // lib/analyzer.ts
+
 export interface DomainReport {
   domain: string;
   score: number;
@@ -27,7 +28,7 @@ async function fetchWithTimeout(url: string, timeout = 5000) {
 }
 
 // Wayback Machine snapshots
-export async function getWaybackSnapshots(domain: string) {
+export async function getWaybackSnapshots(domain: string): Promise<number> {
   try {
     const res = await fetchWithTimeout(
       `https://web.archive.org/cdx/search/cdx?url=${domain}/*&output=json&fl=timestamp&collapse=timestamp`
@@ -40,17 +41,19 @@ export async function getWaybackSnapshots(domain: string) {
 }
 
 // Check DNS resolution
-export async function checkDNS(domain: string) {
+export async function checkDNS(domain: string): Promise<boolean> {
   try {
     const res = await fetchWithTimeout(`https://${domain}`, 3000);
-    return res.ok; // DNS resolves if fetch succeeds
+    return res.ok;
   } catch {
     return false;
   }
 }
 
 // Check HTTPS support and get status code
-export async function checkHTTPS(domain: string) {
+export async function checkHTTPS(
+  domain: string
+): Promise<{ https: boolean; status: number }> {
   try {
     const res = await fetchWithTimeout(`https://${domain}`, 5000);
     return { https: res.ok, status: res.status };
@@ -60,8 +63,8 @@ export async function checkHTTPS(domain: string) {
   }
 }
 
-// Basic spam indicator
-export function checkSpam(domain: string) {
+// Basic spam indicator (placeholder)
+export function checkSpam(domain: string): boolean {
   const spamTlds = ["xyz", "top", "win"];
   return spamTlds.includes(domain.split(".").pop()!.toLowerCase());
 }
@@ -72,45 +75,47 @@ export function calculateScore(report: {
   https: boolean;
   snapshots: number;
   domain: string;
-}) {
+  spam?: boolean;
+}): number {
   let score = 100;
   if (!report.dns) score -= 50;
   if (!report.https) score -= 20;
   if (report.snapshots === 0) score -= 10;
   if (report.domain.length > 20) score -= 10;
-  if (checkSpam(report.domain)) score -= 20;
+  if (report.spam) score -= 20;
   return Math.max(0, Math.min(100, score));
 }
 
 // Risk assessment
-export function assessRisk(score: number) {
+export function assessRisk(score: number): "Low" | "Medium" | "High" {
   if (score >= 80) return "Low";
   if (score >= 50) return "Medium";
   return "High";
 }
 
 // Strategy suggestion
-export function recommendStrategy(risk: string) {
+export function recommendStrategy(risk: string): string {
   if (risk === "Low") return "Partial SEO & Content Update";
   if (risk === "Medium") return "SEO Refresh & Minor Content Update";
   return "Full Content & SEO Rebuild";
 }
 
-// Full analyzer returning all data
+// Full analyzer
 export async function analyzeDomain(domain: string): Promise<DomainReport> {
-  const [snapshots, dns, httpsResult] = await Promise.all([
+  const [snapshots, dns, { https, status }] = await Promise.all([
     getWaybackSnapshots(domain),
     checkDNS(domain),
     checkHTTPS(domain),
   ]);
-
-  const https = httpsResult.https;
-  const status = httpsResult.status;
   const spam = checkSpam(domain);
   const length = domain.length;
   const tld = domain.split(".").pop() || "";
 
-  const report: DomainReport = {
+  const score = calculateScore({ dns, https, snapshots, domain, spam });
+  const risk = assessRisk(score);
+  const strategy = recommendStrategy(risk);
+
+  return {
     domain,
     snapshots,
     dns,
@@ -119,15 +124,9 @@ export async function analyzeDomain(domain: string): Promise<DomainReport> {
     spam,
     length,
     tld,
-    score: 0, // temporary
-    risk: "High", // temporary
-    strategy: "",
+    score,
+    risk,
+    strategy,
   };
-
-  report.score = calculateScore({ dns, https, snapshots, domain });
-  report.risk = assessRisk(report.score);
-  report.strategy = recommendStrategy(report.risk);
-
-  return report;
 }
 

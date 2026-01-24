@@ -1,54 +1,57 @@
 // app/api/analyze/route.ts
-export const runtime = "edge";
-
+import { NextRequest, NextResponse } from "next/server";
 import {
   checkDNS,
   checkHTTPS,
   getWaybackSnapshots,
+  checkSpam,
   calculateScore,
   assessRisk,
   recommendStrategy,
 } from "@lib/analyzer";
 
-export async function POST(req: Request) {
-  try {
-    const { domain } = await req.json();
+export const runtime = "edge";
 
-    // Step 1: Fetch all signals in parallel
-    const [dns, httpsResult, snapshots] = await Promise.all([
+export async function POST(req: NextRequest) {
+  const { domain } = await req.json();
+  if (!domain) return NextResponse.json({ error: "Domain required" }, { status: 400 });
+
+  const steps: Record<string, any> = {
+    dns: null,
+    https: null,
+    snapshots: null,
+    score: null,
+    risk: null,
+    strategy: null,
+    spam: null,
+  };
+
+  try {
+    // Run checks in parallel
+    const [dns, httpsRes, snapshots] = await Promise.all([
       checkDNS(domain),
       checkHTTPS(domain),
       getWaybackSnapshots(domain),
     ]);
 
-    // Step 2: Extract https and status
-    const https = httpsResult.https;
-    const status = httpsResult.status;
+    const spam = checkSpam(domain);
 
-    // Step 3: Calculate score, risk, and strategy
-    const score = calculateScore({ dns, https, snapshots, domain });
+    const score = calculateScore({ dns, https: httpsRes.https, snapshots, domain, spam });
     const risk = assessRisk(score);
     const strategy = recommendStrategy(risk);
 
-    // Step 4: Return full report
-    return new Response(
-      JSON.stringify({
-        domain,
-        dns,
-        https,
-        status,
-        snapshots,
-        score,
-        risk,
-        strategy,
-      }),
-      { headers: { "Content-Type": "application/json" } }
-    );
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({ error: err.message || "Internal error" }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    // Assign steps
+    steps.dns = dns;
+    steps.https = httpsRes;
+    steps.snapshots = snapshots;
+    steps.spam = spam;
+    steps.score = score;
+    steps.risk = risk;
+    steps.strategy = strategy;
+
+    return NextResponse.json({ domain, steps });
+  } catch (err) {
+    return NextResponse.json({ error: "Failed to analyze domain", details: err }, { status: 500 });
   }
 }
 
