@@ -1,14 +1,11 @@
 // lib/analyzer.ts
-import dns from "dns/promises";
-import fetch from "node-fetch";
-
 export interface DomainReport {
   domain: string;
   score: number;
   risk: "Low" | "Medium" | "High";
   strategy: string;
   snapshots: number;
-  dns: boolean;
+  dns: boolean; // we'll fake DNS via fetch
   https: boolean;
   status: number;
   length: number;
@@ -16,7 +13,7 @@ export interface DomainReport {
   spam: boolean;
 }
 
-// Helper: fetch Wayback snapshots count
+// Wayback snapshots
 async function getWaybackSnapshots(domain: string): Promise<number> {
   try {
     const res = await fetch(
@@ -29,7 +26,7 @@ async function getWaybackSnapshots(domain: string): Promise<number> {
   }
 }
 
-// Helper: check HTTPS status
+// HTTPS + status
 async function checkHTTPS(domain: string): Promise<{ https: boolean; status: number }> {
   try {
     const res = await fetch(`https://${domain}`, { method: "HEAD", redirect: "manual" });
@@ -39,30 +36,27 @@ async function checkHTTPS(domain: string): Promise<{ https: boolean; status: num
   }
 }
 
-// Helper: check DNS resolve
+// Fake DNS check by trying HTTPS or HTTP request
 async function checkDNS(domain: string): Promise<boolean> {
   try {
-    await dns.lookup(domain);
-    return true;
+    const res = await fetch(`https://${domain}`, { method: "HEAD", redirect: "manual" });
+    return res.ok || res.status === 301 || res.status === 302;
   } catch {
     return false;
   }
 }
 
-// Main analyzer
 export async function analyzeDomain(domain: string): Promise<DomainReport> {
   const length = domain.length;
   const tld = domain.split(".").pop() || "";
-  const spam = false; // placeholder for spam checks
+  const spam = false;
 
-  // Run DNS, HTTPS, Wayback checks in parallel
   const [dnsResolves, httpsRes, snapshots] = await Promise.all([
     checkDNS(domain),
     checkHTTPS(domain),
     getWaybackSnapshots(domain),
   ]);
 
-  // Simple scoring algorithm
   let score = 0;
   if (dnsResolves) score += 30;
   if (httpsRes.https) score += 20;
