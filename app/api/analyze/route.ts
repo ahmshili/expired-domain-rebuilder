@@ -1,23 +1,16 @@
-// app/api/analyze/route.ts
-export const runtime = "edge";
+import { NextRequest, NextResponse } from "next/server";
+import { analyzeDomain } from "../../../lib/analyzer";
 
-import { analyzeDomain } from "@lib/analyzer";
-
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const { domain } = await req.json();
+    if (!domain) return NextResponse.json({ error: "Domain is required" }, { status: 400 });
 
-    if (!domain || typeof domain !== "string") {
-      return Response.json({ error: "Invalid domain" }, { status: 400 });
-    }
-
-    const data = await analyzeDomain(domain);
-    return Response.json(data);
-  } catch (err: any) {
-    return Response.json(
-      { error: err.message || "Unknown error" },
-      { status: 500 }
-    );
+    const report = await analyzeDomain(domain);
+    return NextResponse.json(report);
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: "Failed to analyze domain" }, { status: 500 });
   }
 }
 
