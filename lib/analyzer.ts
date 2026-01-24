@@ -1,112 +1,120 @@
 // lib/analyzer.ts
-export interface DomainReport {
-  domain: string;
-  score: number;
-  risk: 'Low' | 'Medium' | 'High';
-  strategy: string;
-  snapshots: number;
-  dns: boolean;
-  https: boolean;
-  status: number;
-  length: number;
-  tld: string;
-  spam: boolean;
-}
+import dns from "dns/promises";
 
-async function fetchWaybackSnapshots(domain: string): Promise<number> {
+/**
+ * Get number of Wayback Machine snapshots for a domain
+ */
+export async function getWaybackCount(domain: string): Promise<number> {
   try {
-    const res = await fetch(`https://archive.org/wayback/available?url=${domain}`);
+    const res = await fetch(
+      `https://web.archive.org/cdx/search/cdx?url=${domain}/*&output=json&fl=timestamp&collapse=digest`
+    );
     const data = await res.json();
-    if (data.archived_snapshots && data.archived_snapshots.closest) {
-      // Only count if snapshot has real content
-      const snapRes = await fetch(data.archived_snapshots.closest.url);
-      const html = await snapRes.text();
-      return html.length > 200 ? 1 : 0; // count only meaningful snapshots
+    if (Array.isArray(data)) {
+      // First entry is header row
+      return data.length - 1;
     }
     return 0;
-  } catch {
+  } catch (e) {
     return 0;
   }
 }
 
-async function checkDNS(domain: string): Promise<boolean> {
+/**
+ * Check if DNS resolves
+ */
+export async function checkDNS(domain: string): Promise<boolean> {
   try {
-    const res = await fetch(`https://${domain}`, { method: 'HEAD', redirect: 'manual' });
-    return res.ok || res.status === 301 || res.status === 302;
+    const result = await dns.resolveAny(domain);
+    return result && result.length > 0;
   } catch {
     return false;
   }
 }
 
-async function supportsHTTPS(domain: string): Promise<boolean> {
+/**
+ * Check if HTTPS is supported
+ */
+export async function supportsHTTPS(domain: string): Promise<boolean> {
   try {
-    const res = await fetch(`https://${domain}`, { method: 'HEAD', redirect: 'manual' });
+    const res = await fetch(`https://${domain}`, { method: "HEAD" });
     return res.ok;
   } catch {
     return false;
   }
 }
 
-async function fetchStatus(domain: string): Promise<number> {
+/**
+ * Get HTTP status code
+ */
+export async function fetchStatus(domain: string): Promise<number> {
   try {
-    const res = await fetch(`https://${domain}`, { method: 'HEAD', redirect: 'manual' });
+    const res = await fetch(`https://${domain}`, { method: "HEAD" });
     return res.status;
   } catch {
     return 0;
   }
 }
 
-function detectSpam(domain: string): boolean {
-  // basic placeholder, can expand
-  const blacklist = ['free', 'cheap', 'buy', 'click', 'offer'];
-  return blacklist.some(word => domain.includes(word));
+/**
+ * Simple spam check placeholder (can be expanded later)
+ */
+export function spamIndicators(domain: string): boolean {
+  // Placeholder: mark domains with random gibberish TLDs as spam
+  return /[0-9]{6,}/.test(domain);
 }
 
-export async function analyzeDomain(domain: string): Promise<DomainReport> {
-  const snapshots = await fetchWaybackSnapshots(domain);
-  const dns = await checkDNS(domain);
+/**
+ * Main analysis function
+ */
+export async function analyzeDomain(domain: string) {
+  // Get all signals
+  const snapshots = await getWaybackCount(domain);
+  const dnsResolves = await checkDNS(domain);
   const https = await supportsHTTPS(domain);
   const status = await fetchStatus(domain);
   const length = domain.length;
-  const tld = domain.slice(domain.lastIndexOf('.'));
+  const tld = domain.split(".").pop() || "";
+  const spam = spamIndicators(domain);
 
-  // Realistic scoring
+  // SEO Scoring (0-100)
   let score = 0;
 
-  // Live content check
-  if (dns && status === 200 && snapshots > 0) score += 40;
+  // Wayback snapshot scoring
+  if (snapshots >= 50) score += 25;
+  else if (snapshots >= 20) score += 15;
+  else if (snapshots >= 5) score += 5;
 
-  // Wayback snapshots
-  if (snapshots >= 5) score += 15;
+  // DNS scoring
+  if (dnsResolves) score += 20;
 
-  // DNS + HTTPS
-  if (dns) score += 10;
-  if (https) score += 10;
+  // HTTPS scoring
+  if (https) score += 15;
 
-  // HTTP status
-  if (status === 200) score += 10;
+  // HTTP status scoring
+  if (status === 200) score += 15;
+  else if (status === 301) score += 10;
+  else if (status === 302) score += 5;
 
-  // Domain length bonus (short and memorable)
+  // Domain length scoring
   if (length <= 12) score += 10;
   else if (length <= 18) score += 5;
 
-  // Favor common TLDs
-  if (['.com', '.net', '.org'].includes(tld)) score += 5;
-
-  // Spam indicators
-  const spam = detectSpam(domain);
+  // Spam penalty
   if (spam) score -= 20;
 
-  // Cap score at 100
-  if (score > 100) score = 100;
+  // Cap score between 0-100
+  score = Math.max(0, Math.min(100, score));
 
-  // Determine risk
-  let risk: 'Low' | 'Medium' | 'High' = 'Low';
-  if (!dns || status !== 200 || snapshots === 0) risk = 'High';
-  else if (score < 50) risk = 'Medium';
+  // Risk level
+  let risk: "Low" | "Medium" | "High" = "High";
+  if (score >= 80) risk = "Low";
+  else if (score >= 50) risk = "Medium";
 
-  // Strategy
-  const strategy = score >= 70 ? 'Authority Content Rebuild' : 'Full Content & SEO Rebuild';
+  // Recommended strategy
+  let strategy = "Full Content & SEO Rebuild";
+  if (score >= 80) strategy = "Authority Content Rebuild";
+  else if (score >= 50) strategy = "Partial Content & SEO Refresh";
 
   return {
     domain,
@@ -114,7 +122,7 @@ export async function analyzeDomain(domain: string): Promise<DomainReport> {
     risk,
     strategy,
     snapshots,
-    dns,
+    dns: dnsResolves,
     https,
     status,
     length,
