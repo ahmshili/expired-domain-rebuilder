@@ -1,54 +1,80 @@
-export async function analyzeDomain(domain: string) {
-  let dns = false;
-  let httpsStatus: number | null = null;
-  let snapshots = 0;
+// lib/analyzer.ts
+
+import { checkDNS } from "./dns";
+import { getWaybackSnapshots } from "./archive";
+
+export type DomainReport = {
+  domain: string;
+  dnsResolves: boolean;
+  httpsSupported: boolean;
+  httpStatus: number;
+  waybackSnapshots: number;
+  spam: boolean;
+  score: number;
+  risk: "Low" | "Medium" | "High";
+  strategy: string;
+};
+
+export async function analyzeDomain(domain: string): Promise<DomainReport> {
+  let dnsResolves = false;
+  let httpsSupported = false;
+  let httpStatus = 0;
+  let waybackSnapshots = 0;
   let spam = false;
 
   try {
-    const res = await fetch(`https://${domain}`, { method: "HEAD" });
-    httpsStatus = res.status;
-    dns = true;
+    dnsResolves = await checkDNS(domain);
   } catch {}
 
   try {
-    const wb = await fetch(
-      `https://archive.org/wayback/available?url=${domain}`
-    );
-    const data = await wb.json();
-    snapshots = data?.archived_snapshots ? 1 : 0;
-  } catch {}
-
-  // HARD RULE: dead domains get zero
-  if (!dns && snapshots === 0) {
-    return {
-      domain,
-      dns: false,
-      httpsStatus,
-      snapshots: 0,
-      spam: false,
-      score: 0,
-      risk: "High",
-      strategy: "Discard — no authority or history detected",
-    };
+    const res = await fetch(`https://${domain}`, {
+      method: "HEAD",
+      redirect: "manual",
+    });
+    httpsSupported = true;
+    httpStatus = res.status;
+  } catch {
+    httpsSupported = false;
+    httpStatus = 0;
   }
 
-  const score = Math.min(
-    100,
-    (dns ? 30 : 0) + snapshots * 40 + (httpsStatus === 200 ? 30 : 0)
-  );
+  try {
+    waybackSnapshots = await getWaybackSnapshots(domain);
+  } catch {
+    waybackSnapshots = 0;
+  }
+
+  // ---- SCORING LOGIC ----
+  let score = 0;
+
+  if (dnsResolves) score += 30;
+  if (httpsSupported && httpStatus === 200) score += 30;
+  if (waybackSnapshots > 0) score += 40;
+
+  // Non-existing domains should NEVER score > 0
+  if (!dnsResolves) score = 0;
+
+  let risk: DomainReport["risk"] = "High";
+  let strategy = "Full Content & SEO Rebuild";
+
+  if (score >= 80) {
+    risk = "Low";
+    strategy = "Partial SEO & Content Update";
+  } else if (score >= 40) {
+    risk = "Medium";
+    strategy = "Selective Content Rebuild";
+  }
 
   return {
     domain,
-    dns,
-    httpsStatus,
-    snapshots,
+    dnsResolves,
+    httpsSupported,
+    httpStatus,
+    waybackSnapshots,
     spam,
     score,
-    risk: score > 60 ? "Low" : score > 30 ? "Medium" : "High",
-    strategy:
-      score > 60
-        ? "Partial rebuild & link preservation"
-        : "Full content rebuild with SEO reset",
+    risk,
+    strategy,
   };
 }
 
