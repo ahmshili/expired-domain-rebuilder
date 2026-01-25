@@ -1,5 +1,4 @@
 // lib/analyzer.ts
-
 import { checkDNS } from "./dns";
 import { getWaybackSnapshots } from "./archive";
 
@@ -27,10 +26,7 @@ export async function analyzeDomain(domain: string): Promise<DomainReport> {
   } catch {}
 
   try {
-    const res = await fetch(`https://${domain}`, {
-      method: "HEAD",
-      redirect: "manual",
-    });
+    const res = await fetch(`https://${domain}`, { method: "HEAD", redirect: "manual" });
     httpsSupported = true;
     httpStatus = res.status;
   } catch {
@@ -46,17 +42,13 @@ export async function analyzeDomain(domain: string): Promise<DomainReport> {
 
   // ---- SCORING LOGIC ----
   let score = 0;
-
   if (dnsResolves) score += 30;
   if (httpsSupported && httpStatus === 200) score += 30;
   if (waybackSnapshots > 0) score += 40;
-
-  // Non-existing domains should NEVER score > 0
-  if (!dnsResolves) score = 0;
+  score += !spam ? 30 : 0;  // Add points for clean spam signals
 
   let risk: DomainReport["risk"] = "High";
   let strategy = "Full Content & SEO Rebuild";
-
   if (score >= 80) {
     risk = "Low";
     strategy = "Partial SEO & Content Update";
@@ -77,4 +69,3 @@ export async function analyzeDomain(domain: string): Promise<DomainReport> {
     strategy,
   };
 }
-
