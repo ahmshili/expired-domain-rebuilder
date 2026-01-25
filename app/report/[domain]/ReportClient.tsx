@@ -5,71 +5,60 @@ import type { DomainReport } from "../../../lib/analyzer";
 
 export default function ReportClient({ domain }: { domain: string }) {
   const [data, setData] = useState<DomainReport | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function analyze() {
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain }),
-      });
-
-      const json = await res.json();
-      setData(json);
-      setLoading(false);
-    }
-
-    analyze();
+    fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ domain }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Analysis failed");
+        return res.json();
+      })
+      .then(setData)
+      .catch(() => setError("Failed to analyze domain"));
   }, [domain]);
 
-  if (loading) {
+  if (error) {
+    return <p className="text-red-600">{error}</p>;
+  }
+
+  if (!data) {
     return (
-      <p className="mt-10 text-center text-gray-500">
-        Analyzing domain…
-      </p>
+      <div className="space-y-2 text-gray-600">
+        <p>Analyzing domain…</p>
+        <ul className="list-disc pl-5 animate-pulse">
+          <li>Checking DNS</li>
+          <li>Checking HTTPS</li>
+          <li>Fetching Wayback snapshots</li>
+          <li>Calculating score & risk</li>
+        </ul>
+      </div>
     );
   }
 
-  if (!data) return null;
-
   return (
-    <main className="max-w-2xl mx-auto mt-10 p-8 bg-white rounded-xl shadow">
-      <h1 className="text-2xl font-bold mb-2">
-        Domain Rebuild Report
-      </h1>
+    <div className="space-y-4">
+      <h2 className="text-xl font-semibold">
+        Domain Rebuild Report: {data.domain}
+      </h2>
 
-      <p className="text-gray-500 mb-6">{data.domain}</p>
+      <ul className="space-y-1 text-gray-700">
+        <li>DNS Resolves: {data.dnsResolves ? "Yes" : "No"}</li>
+        <li>HTTPS Supported: {data.httpsSupported ? "Yes" : "No"}</li>
+        <li>HTTP Status Code: {data.httpStatus || "N/A"}</li>
+        <li>Wayback Snapshots: {data.waybackSnapshots}</li>
+        <li>Risk Level: {data.risk}</li>
+        <li>Score: {data.score}/100</li>
+      </ul>
 
-      <section className="mb-6">
-        <p className="text-xl font-semibold">
-          SEO Rebuild Score: {data.score} / 100
-        </p>
-        <p className="mt-1">
-          Risk Level: <strong>{data.risk}</strong>
-        </p>
-        <p>
-          Recommended Strategy:{" "}
-          <strong>{data.strategy}</strong>
-        </p>
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold mb-3">
-          Technical Signals
-        </h2>
-
-        <ul className="space-y-1 text-gray-700">
-          <li>DNS Resolves: {data.dns ? "Yes" : "No"}</li>
-          <li>HTTPS Supported: {data.https ? "Yes" : "No"}</li>
-          <li>HTTP Status Code: {data.status}</li>
-          <li>Wayback Snapshots: {data.snapshots}</li>
-          <li>Spam Indicators: {data.spam ? "Yes" : "No"}</li>
-          <li>Domain Length: {data.length}</li>
-          <li>TLD: .{data.tld}</li>
-        </ul>
-      </section>
-    </main>
+      <div className="rounded border p-3 bg-gray-50">
+        <strong>Recommended Strategy:</strong>
+        <p>{data.strategy}</p>
+      </div>
+    </div>
   );
 }
 
